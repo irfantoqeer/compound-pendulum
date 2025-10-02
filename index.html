@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compound Pendulum Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .control-panel {
+            background-color: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom styles for sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #4a5568; /* gray-700 */
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4299e1; /* blue-400 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #1a202c; /* gray-900 */
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4299e1; /* blue-400 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #1a202c; /* gray-900 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white overflow-hidden h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-7xl h-full bg-gray-800 rounded-2xl shadow-2xl flex flex-col lg:flex-row overflow-hidden border border-gray-700">
+        
+        <!-- Simulation Canvas -->
+        <div class="w-full lg:w-2/3 h-1/2 lg:h-full flex items-center justify-center bg-gray-900 relative">
+            <canvas id="simulationCanvas"></canvas>
+            <div id="oscillation-counter" class="absolute top-4 left-4 bg-gray-800/50 backdrop-blur-sm text-blue-300 px-4 py-2 rounded-lg text-xl font-mono shadow-lg">
+                Oscillations: <span id="osc-count">0</span>
+            </div>
+             <div class="absolute bottom-4 left-4 right-4 text-center text-gray-400 text-sm">
+                Drag the pendulum to set an initial angle and release.
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="w-full lg:w-1/3 h-1/2 lg:h-full p-6 overflow-y-auto space-y-6 bg-gray-800/50 border-l border-gray-700">
+            <div class="text-center">
+                <h2 class="text-lg text-gray-400">Experiment: Value of 'g' by Compound Pendulum</h2>
+                <h1 class="text-3xl font-bold text-blue-300 mt-1">Compound Pendulum Lab</h1>
+                <p class="text-md text-gray-300 font-bold mt-2">Prepared by: Dr. Irfan Toqeer</p>
+            </div>
+
+
+            <!-- Environment Controls -->
+            <div class="p-4 rounded-lg bg-gray-700/50 space-y-3">
+                <label for="planet" class="block text-lg font-semibold text-gray-300">Environment (Gravity)</label>
+                <select id="planet" class="w-full p-2 rounded-md bg-gray-800 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <option value="9.81">Earth (9.81 m/s²)</option>
+                    <option value="1.62">Moon (1.62 m/s²)</option>
+                    <option value="3.71">Mars (3.71 m/s²)</option>
+                    <option value="24.79">Jupiter (24.79 m/s²)</option>
+                    <option value="15.0">Custom</option>
+                </select>
+            </div>
+
+            <!-- Pendulum Properties -->
+            <div class="p-4 rounded-lg bg-gray-700/50 space-y-4">
+                 <h2 class="text-lg font-semibold text-gray-300">Pendulum Properties</h2>
+                <div>
+                    <label for="length" class="flex justify-between text-gray-300"><span>Rod Length (L)</span> <span id="length-value" class="font-mono text-blue-300">1.00 m</span></label>
+                    <input type="range" id="length" min="0.5" max="2.0" value="1.0" step="0.01" class="w-full mt-1">
+                </div>
+                <div>
+                    <label for="pivot" class="flex justify-between text-gray-300"><span>Pivot Distance from Center (h)</span> <span id="pivot-value" class="font-mono text-blue-300">0.50 m</span></label>
+                    <input type="range" id="pivot" min="0.01" max="1.0" value="0.5" step="0.01" class="w-full mt-1">
+                </div>
+            </div>
+
+            <!-- Measurement Tools -->
+            <div class="p-4 rounded-lg bg-gray-700/50 space-y-3">
+                <h2 class="text-lg font-semibold text-gray-300">Measurement Tools</h2>
+                <div class="flex items-center justify-center p-4 bg-gray-900 rounded-lg">
+                    <span id="timer" class="text-5xl font-mono text-green-300">00.00</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="start-stop-timer" class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors font-semibold">Start Timer</button>
+                    <button id="reset-timer" class="w-full py-2 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors font-semibold">Reset Timer</button>
+                </div>
+            </div>
+
+             <!-- Calculate 'g' -->
+            <div class="p-4 rounded-lg bg-gray-700/50 space-y-3">
+                <h2 class="text-lg font-semibold text-gray-300">Calculate 'g'</h2>
+                <p class="text-sm text-gray-400">Use the timer to measure the time for N oscillations. Calculate Period (T = time / N), then input it below.</p>
+                <div>
+                    <label for="measured-period" class="block text-gray-300 mb-1">Measured Period (T) in seconds</label>
+                    <input type="number" id="measured-period" placeholder="e.g., 2.05" class="w-full p-2 rounded-md bg-gray-800 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+                <button id="calculate-g" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded-md transition-colors font-semibold">Calculate g</button>
+                <div class="text-center mt-3">
+                    <p class="text-gray-300">Calculated g: <span id="g-result" class="text-2xl font-mono text-yellow-300">- m/s²</span></p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Canvas and Drawing Setup ---
+            const canvas = document.getElementById('simulationCanvas');
+            const ctx = canvas.getContext('2d');
+            const container = canvas.parentElement;
+
+            let scale = 150; // pixels per meter
+
+            function resizeCanvas() {
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+                // --- CHANGE: Make pendulum larger by dividing by a smaller number
+                scale = Math.min(canvas.width / 1.8, canvas.height / 1.8); // Adjust scale based on viewport
+            }
+
+            // --- DOM Element References ---
+            const planetSelect = document.getElementById('planet');
+            const lengthSlider = document.getElementById('length');
+            const lengthValue = document.getElementById('length-value');
+            const pivotSlider = document.getElementById('pivot');
+            const pivotValue = document.getElementById('pivot-value');
+            const timerDisplay = document.getElementById('timer');
+            const startStopTimerBtn = document.getElementById('start-stop-timer');
+            const resetTimerBtn = document.getElementById('reset-timer');
+            const oscCountDisplay = document.getElementById('osc-count');
+            const measuredPeriodInput = document.getElementById('measured-period');
+            const calculateGBtn = document.getElementById('calculate-g');
+            const gResultDisplay = document.getElementById('g-result');
+
+            // --- Simulation State ---
+            let simState = {
+                g: 9.81,
+                rodLength: 1.0, // L
+                pivotDist: 0.5, // h
+                
+                angle: Math.PI / 6, // theta
+                angularVelocity: 0,
+                
+                isRunning: false,
+                time: 0,
+                lastFrameTime: 0,
+
+                // Drag state
+                isDragging: false,
+            };
+
+            // --- Timer State ---
+            let timerState = {
+                startTime: 0,
+                elapsedTime: 0,
+                isRunning: false,
+                intervalId: null,
+            };
+
+            // --- Oscillation Counter State ---
+            let oscState = {
+                count: 0,
+                lastAngle: 0,
+            };
+
+            // --- Physics Calculations ---
+            function calculatePeriod() {
+                const L = simState.rodLength;
+                const h = simState.pivotDist;
+                const g = simState.g;
+
+                if (g <= 0 || h <= 0) return Infinity;
+
+                // T = 2 * PI * sqrt(I / (mgh)) where I = I_cm + mh^2 and I_cm = (1/12)mL^2
+                // The mass 'm' cancels out.
+                // T = 2 * PI * sqrt(((1/12)L^2 + h^2) / (gh))
+                const momentOfInertiaTerm = (Math.pow(L, 2) / 12) + Math.pow(h, 2);
+                return 2 * Math.PI * Math.sqrt(momentOfInertiaTerm / (g * h));
+            }
+
+            // --- Drawing Functions ---
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const pivotX = canvas.width / 2;
+                const pivotY = canvas.height / 2 - (simState.rodLength * scale / 2.5); // Adjusted pivot Y for better centering
+
+                ctx.save();
+                ctx.translate(pivotX, pivotY);
+                ctx.rotate(simState.angle);
+
+                // Draw Rod
+                const rodTopY = -simState.pivotDist * scale;
+                const rodBottomY = (simState.rodLength - simState.pivotDist) * scale;
+                ctx.beginPath();
+                ctx.moveTo(0, rodTopY);
+                ctx.lineTo(0, rodBottomY);
+                // --- CHANGE: Make rod thicker
+                ctx.lineWidth = 16;
+                ctx.strokeStyle = '#90cdf4'; // blue-300
+                ctx.stroke();
+                
+                // Draw Center of Mass
+                const comY = (simState.rodLength / 2 - simState.pivotDist) * scale;
+                ctx.beginPath();
+                // --- CHANGE: Make Center of Mass circle larger
+                ctx.arc(0, comY, 15, 0, 2 * Math.PI);
+                ctx.fillStyle = '#f6e05e'; // yellow-300
+                ctx.fill();
+                ctx.strokeStyle = '#1a202c';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+
+                ctx.restore();
+
+                // Draw Pivot Point
+                ctx.beginPath();
+                // --- CHANGE: Make Pivot point circle larger
+                ctx.arc(pivotX, pivotY, 12, 0, 2 * Math.PI);
+                ctx.fillStyle = '#cbd5e0'; // gray-300
+                ctx.fill();
+            }
+            
+            // --- Simulation Loop ---
+            function update(deltaTime) {
+                if (!simState.isRunning || simState.isDragging) return;
+                
+                const T = calculatePeriod();
+                if (T === Infinity) return;
+
+                const omega = 2 * Math.PI / T;
+                simState.time += deltaTime;
+                
+                // Using SHM approximation: theta(t) = A * cos(omega * t)
+                // We need to find initial angle (amplitude)
+                simState.angle = simState.initialAngle * Math.cos(omega * simState.time);
+
+                // Update oscillation counter
+                // A full oscillation is completed every time it passes through equilibrium (angle=0) twice.
+                if (oscState.lastAngle < 0 && simState.angle >= 0) {
+                     oscState.count += 0.5;
+                     oscCountDisplay.innerText = Math.floor(oscState.count);
+                }
+                 if (oscState.lastAngle > 0 && simState.angle <= 0) {
+                     oscState.count += 0.5;
+                     oscCountDisplay.innerText = Math.floor(oscState.count);
+                }
+                oscState.lastAngle = simState.angle;
+            }
+            
+            function gameLoop(timestamp) {
+                const deltaTime = (timestamp - simState.lastFrameTime) / 1000; // in seconds
+                simState.lastFrameTime = timestamp;
+
+                if (deltaTime > 0.1) { // Prevent large jumps on lag
+                    requestAnimationFrame(gameLoop);
+                    return;
+                }
+                
+                update(deltaTime);
+                draw();
+                
+                requestAnimationFrame(gameLoop);
+            }
+
+            // --- Reset and Initialization ---
+            function resetSimulation() {
+                simState.isRunning = false;
+                simState.time = 0;
+                simState.angle = simState.initialAngle || Math.PI / 12; // Reset to a small angle
+                simState.angularVelocity = 0;
+                
+                oscState.count = 0;
+                oscState.lastAngle = simState.angle;
+                oscCountDisplay.innerText = '0';
+                
+                draw();
+            }
+
+            function fullReset() {
+                simState.rodLength = parseFloat(lengthSlider.value);
+                simState.pivotDist = parseFloat(pivotSlider.value);
+                simState.g = parseFloat(planetSelect.value);
+
+                // Adjust max pivot distance based on rod length
+                pivotSlider.max = simState.rodLength;
+                if (simState.pivotDist > simState.rodLength) {
+                    simState.pivotDist = simState.rodLength;
+                    pivotSlider.value = simState.rodLength;
+                    pivotValue.textContent = `${simState.pivotDist.toFixed(2)} m`;
+                }
+
+                resetSimulation();
+            }
+
+            // --- Event Handlers ---
+            function handleInputChange() {
+                lengthValue.textContent = `${parseFloat(lengthSlider.value).toFixed(2)} m`;
+                pivotValue.textContent = `${parseFloat(pivotSlider.value).toFixed(2)} m`;
+                fullReset();
+            }
+
+            planetSelect.addEventListener('change', handleInputChange);
+            lengthSlider.addEventListener('input', handleInputChange);
+            pivotSlider.addEventListener('input', handleInputChange);
+
+            // Timer controls
+            startStopTimerBtn.addEventListener('click', () => {
+                if (timerState.isRunning) {
+                    // Stop timer
+                    timerState.isRunning = false;
+                    clearInterval(timerState.intervalId);
+                    startStopTimerBtn.textContent = 'Start Timer';
+                    startStopTimerBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    startStopTimerBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                } else {
+                    // Start timer
+                    timerState.isRunning = true;
+                    timerState.startTime = Date.now() - timerState.elapsedTime;
+                    timerState.intervalId = setInterval(() => {
+                        timerState.elapsedTime = Date.now() - timerState.startTime;
+                        const seconds = timerState.elapsedTime / 1000;
+                        timerDisplay.textContent = seconds.toFixed(2);
+                    }, 10);
+                    startStopTimerBtn.textContent = 'Stop Timer';
+                    startStopTimerBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    startStopTimerBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+                }
+            });
+
+            resetTimerBtn.addEventListener('click', () => {
+                timerState.isRunning = false;
+                clearInterval(timerState.intervalId);
+                timerState.elapsedTime = 0;
+                timerDisplay.textContent = '00.00';
+                if(startStopTimerBtn.textContent === 'Stop Timer') {
+                    startStopTimerBtn.textContent = 'Start Timer';
+                    startStopTimerBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    startStopTimerBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                }
+            });
+
+            // G calculation
+            calculateGBtn.addEventListener('click', () => {
+                const T = parseFloat(measuredPeriodInput.value);
+                if (isNaN(T) || T <= 0) {
+                    gResultDisplay.textContent = 'Invalid T';
+                    return;
+                }
+                
+                const L = simState.rodLength;
+                const h = simState.pivotDist;
+
+                const g_calculated = (4 * Math.pow(Math.PI, 2) * ((Math.pow(L, 2) / 12) + Math.pow(h, 2))) / (Math.pow(T, 2) * h);
+                gResultDisplay.textContent = `${g_calculated.toFixed(2)} m/s²`;
+            });
+            
+            // --- Mouse Drag Controls ---
+            function getMousePos(evt) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top
+                };
+            }
+
+            canvas.addEventListener('mousedown', (e) => {
+                simState.isDragging = true;
+                simState.isRunning = false;
+            });
+            
+            canvas.addEventListener('mouseup', (e) => {
+                if (simState.isDragging) {
+                    simState.isDragging = false;
+                    simState.isRunning = true;
+                    simState.initialAngle = simState.angle;
+                    resetSimulation();
+                    simState.isRunning = true;
+                }
+            });
+
+            canvas.addEventListener('mouseleave', (e) => {
+                 if (simState.isDragging) {
+                    simState.isDragging = false;
+                    simState.isRunning = true;
+                    simState.initialAngle = simState.angle;
+                    resetSimulation();
+                    simState.isRunning = true;
+                }
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (!simState.isDragging) return;
+
+                const mousePos = getMousePos(e);
+                const pivotX = canvas.width / 2;
+                const pivotY = canvas.height / 2 - (simState.rodLength * scale / 2.5); // Adjusted pivot Y
+                
+                const dx = mousePos.x - pivotX;
+                const dy = mousePos.y - pivotY;
+                
+                let angle = Math.atan2(dy, dx) - Math.PI / 2;
+                
+                // Clamp angle to avoid full circles
+                angle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, angle));
+                
+                simState.angle = angle;
+                draw();
+            });
+
+            // --- Initial Setup ---
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                fullReset();
+            });
+
+            resizeCanvas();
+            fullReset();
+            simState.initialAngle = simState.angle;
+            simState.lastFrameTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+</html>
+
